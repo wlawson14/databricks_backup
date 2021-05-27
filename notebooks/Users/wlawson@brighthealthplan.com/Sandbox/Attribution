@@ -1,0 +1,66 @@
+// Databricks notebook source
+val attribution = spark.read.format("parquet").load("/mnt/datalake/dev/enriched/pcp_selections/attribution_job/member_pcp_attribution_history.parquet")
+attribution.createOrReplaceTempView("attribution")
+spark.sql("select * from attribution where snapshot_date = '2021_04_03_06_28_39' ").createOrReplaceTempView("attribution")
+
+display(spark.sql("select * from attribution"))
+
+// COMMAND ----------
+
+display(spark.sql("select * from dev.person__golden_person"))
+
+// COMMAND ----------
+
+// MAGIC %sql
+// MAGIC select
+// MAGIC   care_partner_name,
+// MAGIC   count(distinct nk_attribution_id)
+// MAGIC --   *
+// MAGIC   
+// MAGIC from attribution a
+// MAGIC INNER JOIN dev.enrollment__base_enrollment e on e.enrollment_id = a.fk_enrollment_id
+// MAGIC left join bdp.plans pl ON pl.plan_year = '2021' and e.plan_id = REPLACE(pl.hios_plan_id_standard_component_variant, '-', '') --- ifp
+// MAGIC LEFT JOIN dev.person__golden_person_crosswalk c ON e.fk_person_id = c.person_id
+// MAGIC LEFT JOIN dev.person__golden_person per ON c.golden_person_id = per.golden_person_id
+// MAGIC 
+// MAGIC where year_month = '2021-04'
+// MAGIC -- and market IN ('Miami', 'Fort Lauderdale', 'Miami (Centrum)', 'Fort Lauderdale (Centrum)')
+// MAGIC and market IN ('Miami', 'Fort Lauderdale')
+// MAGIC and ROUND((datediff('2021-04-01', per.date_of_birth)/365.25)) >= 20
+// MAGIC AND per.residential_state_code = 'FL'
+// MAGIC AND e.member_id like '1%'
+// MAGIC AND e.source_effectuation_date is not null and e.source_effectuation_date <= '2021-04-03'
+// MAGIC -- and care_partner_name is null
+// MAGIC 
+// MAGIC GROUP BY care_partner_name
+
+// COMMAND ----------
+
+// MAGIC %sql
+// MAGIC select distinct care_partner_name
+// MAGIC from dev.enrollment__pcp_attribution a
+// MAGIC -- INNER JOIN dev.enrollment__base_enrollment e on e.enrollment_id = a.fk_enrollment_id
+// MAGIC -- where member_id = '100487800'
+// MAGIC order by care_partner_name desc
+
+// COMMAND ----------
+
+// MAGIC %sql
+// MAGIC select * from dev.enrollment__pcp_attribution a
+// MAGIC left join dev.enrollment__base_enrollment e on e.enrollment_id = a.fk_enrollment_id
+// MAGIC where attribution_type = 'direct_assignment'
+// MAGIC order by source_effectuation_date desc
+
+// COMMAND ----------
+
+display(spark.sql("select * from dev.enrollment__base_enrollment e left join dev.enrollment__pcp_attribution a on e.enrollment_id = a.fk_enrollment_id where member_id = '100340160' "))
+
+// COMMAND ----------
+
+// MAGIC %sql
+// MAGIC select distinct market, care_partner from bdp.plans order by length(care_partner) desc
+
+// COMMAND ----------
+
+// MAGIC %sql
+// MAGIC select distinct market from bdp.plans
